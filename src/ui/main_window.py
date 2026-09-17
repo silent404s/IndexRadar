@@ -70,12 +70,6 @@ class MainWindow(ctk.CTk):
         else:
             self.lbl_balance.configure(text="Saldo: Belum setting key", text_color="#94A3B8")
 
-        # Auto check updates
-        if self.config.get("auto_check_updates", True):
-            update_url = self.config.get("update_url", "")
-            if update_url:
-                check_for_updates(self, CURRENT_VERSION, update_url, silent=True)
-
     def refresh_balance(self):
         api_key = self.config.get("captcha_api_key", "").strip()
         if not api_key:
@@ -161,20 +155,6 @@ class MainWindow(ctk.CTk):
             command=lambda: threading.Thread(target=self.refresh_balance, daemon=True).start()
         )
         btn_refresh_bal.pack(side="left", padx=(0, 4), pady=2)
-
-        # Update button
-        btn_update = ctk.CTkButton(
-            header_right,
-            text="⚡ Cek Pembaruan",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            fg_color="#1E293B",
-            hover_color="#334155",
-            text_color="#38BDF8",
-            height=30,
-            corner_radius=8,
-            command=self.on_click_update
-        )
-        btn_update.pack(side="left", padx=(0, 8))
 
         # Settings button
         btn_settings = ctk.CTkButton(
@@ -527,10 +507,6 @@ class MainWindow(ctk.CTk):
         lbl_v.pack(side="left", padx=(0, 8), pady=3)
         frame.value_label = lbl_v
         return frame
-
-    def on_click_update(self):
-        update_url = self.config.get("update_url", "")
-        check_for_updates(self, CURRENT_VERSION, update_url, silent=False)
 
     def open_settings(self):
         def on_saved(new_cfg):

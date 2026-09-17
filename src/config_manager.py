@@ -15,8 +15,8 @@ DEFAULT_CONFIG = {
     "use_captcha": True,
     "threads": 2,
     "delay": 2.0,
-    "auto_check_updates": True,
-    "update_url": "https://raw.githubusercontent.com/silent404s/IndexRadar/main/version.json"
+    "auto_check_updates": False,
+    "update_url": ""
 }
 
 def load_config():

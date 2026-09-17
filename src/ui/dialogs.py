@@ -106,25 +106,7 @@ class SettingsDialog(ctk.CTkToplevel):
         ctk.CTkLabel(frame, text="2Captcha API Key:", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=20, pady=(5, 2))
         self.entry_key = ctk.CTkEntry(frame, font=ctk.CTkFont(family="Consolas", size=11), fg_color="#0B0F19", border_color="#334155")
         self.entry_key.insert(0, current_config.get("captcha_api_key", ""))
-        self.entry_key.pack(fill="x", padx=20, pady=(0, 10))
-        
-        # Update URL
-        ctk.CTkLabel(frame, text="Update Check URL:", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=20, pady=(5, 2))
-        self.entry_url = ctk.CTkEntry(frame, font=ctk.CTkFont(family="Consolas", size=10), fg_color="#0B0F19", border_color="#334155")
-        self.entry_url.insert(0, current_config.get("update_url", ""))
-        self.entry_url.pack(fill="x", padx=20, pady=(0, 15))
-        
-        # Switches
-        self.var_auto_update = ctk.BooleanVar(value=current_config.get("auto_check_updates", True))
-        chk_update = ctk.CTkCheckBox(
-            frame, 
-            text="Periksa pembaruan aplikasi secara otomatis saat startup",
-            variable=self.var_auto_update,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            fg_color="#10B981",
-            hover_color="#059669"
-        )
-        chk_update.pack(anchor="w", padx=20, pady=(0, 20))
+        self.entry_key.pack(fill="x", padx=20, pady=(0, 20))
         
         # Buttons
         btn_box = ctk.CTkFrame(frame, fg_color="transparent")
@@ -153,10 +135,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def save_settings(self):
         new_key = self.entry_key.get().strip()
-        new_url = self.entry_url.get().strip()
         self.current_config["captcha_api_key"] = new_key
-        self.current_config["update_url"] = new_url
-        self.current_config["auto_check_updates"] = self.var_auto_update.get()
         
         if self.on_save_callback:
             self.on_save_callback(self.current_config)
