@@ -13,7 +13,8 @@ from .captcha_service import solve_google_recaptcha
 
 def clean_domain(text):
     """
-    Membersihkan URL atau domain dari skema protokol, path, query string, dan trailing slash.
+    Membersihkan URL atau domain dari skema protokol, path, query string, trailing slash,
+    serta otomatis menghilangkan awalan www. agar format domain dan pengecekan site: bersih.
     """
     text = text.strip()
     if not text:
@@ -31,9 +32,18 @@ def clean_domain(text):
             netloc = netloc.split(':')[0]
         netloc = netloc.strip().strip('/')
         netloc = re.sub(r'[^\w\.-]', '', netloc)
+        
+        # Hilangkan awalan www. (case-insensitive) dan jadikan huruf kecil
+        netloc = netloc.lower()
+        while netloc.startswith('www.'):
+            netloc = netloc[4:]
+            
         return netloc
     except Exception:
-        return text.split('/')[0].strip()
+        clean = text.split('/')[0].strip().lower()
+        while clean.startswith('www.'):
+            clean = clean[4:]
+        return clean
 
 def create_headless_driver(proxy=None):
     """

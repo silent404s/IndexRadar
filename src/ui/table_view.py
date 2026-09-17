@@ -10,6 +10,7 @@ class ModernTableView(tk.Frame):
         on_delete_callback=None, 
         on_retry_single_callback=None, 
         on_retry_failed_callback=None, 
+        on_status_callback=None,
         *args, 
         **kwargs
     ):
@@ -17,6 +18,7 @@ class ModernTableView(tk.Frame):
         self.on_delete_callback = on_delete_callback
         self.on_retry_single_callback = on_retry_single_callback
         self.on_retry_failed_callback = on_retry_failed_callback
+        self.on_status_callback = on_status_callback
         
         # State animasi loading per baris
         self.checking_indices = set()
@@ -134,6 +136,8 @@ class ModernTableView(tk.Frame):
             domain = item_vals[1]
             url = f"https://www.google.com/search?q=site:{quote_plus(domain)}&hl=en"
             webbrowser.open_new_tab(url)
+            if self.on_status_callback:
+                self.on_status_callback(f"🌐 Membuka Google Search: site:{domain}")
 
     def copy_domain(self):
         selected = self.tree.selection()
@@ -144,6 +148,8 @@ class ModernTableView(tk.Frame):
             domain = item_vals[1]
             self.clipboard_clear()
             self.clipboard_append(domain)
+            if self.on_status_callback:
+                self.on_status_callback(f"📋 Domain tersalin ke clipboard: {domain}")
 
     def retry_single(self):
         selected = self.tree.selection()
@@ -177,6 +183,8 @@ class ModernTableView(tk.Frame):
         self.tree.delete(item_id)
         if self.on_delete_callback and item_vals:
             self.on_delete_callback(item_vals)
+        if self.on_status_callback and item_vals and len(item_vals) >= 2:
+            self.on_status_callback(f"🗑️ Domain dihapus dari tabel: {item_vals[1]}")
 
     def populate_initial_rows(self, domains):
         """

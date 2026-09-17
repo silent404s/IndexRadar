@@ -12,7 +12,7 @@ from ..captcha_service import get_2captcha_balance
 from ..checker_engine import CheckerEngine, clean_domain
 from ..export_utils import export_to_csv
 from .table_view import ModernTableView
-from .dialogs import AboutDialog
+from .dialogs import AboutDialog, HelpInfoDialog
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -245,6 +245,22 @@ class MainWindow(ctk.CTk):
             text_color="#E2E8F0"
         ).pack(side="left")
 
+        btn_proxy_help = ctk.CTkButton(
+            proxy_header,
+            text="?",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#1E293B",
+            hover_color="#334155",
+            text_color="#38BDF8",
+            border_width=1,
+            border_color="#334155",
+            width=20,
+            height=20,
+            corner_radius=10,
+            command=lambda: self.show_help_dialog("proxy")
+        )
+        btn_proxy_help.pack(side="left", padx=(6, 0))
+
         btn_clear_proxy = ctk.CTkButton(
             proxy_header,
             text="🧹 Bersihkan",
@@ -357,7 +373,23 @@ class MainWindow(ctk.CTk):
         ctrl_inner.pack(fill="x", padx=14, pady=8)
 
         # Settings: Threads
-        ctk.CTkLabel(ctrl_inner, text="Threads:", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(ctrl_inner, text="Threads:", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(side="left", padx=(0, 3))
+        btn_threads_help = ctk.CTkButton(
+            ctrl_inner,
+            text="?",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            fg_color="#1E293B",
+            hover_color="#334155",
+            text_color="#38BDF8",
+            border_width=1,
+            border_color="#334155",
+            width=18,
+            height=18,
+            corner_radius=9,
+            command=lambda: self.show_help_dialog("threads")
+        )
+        btn_threads_help.pack(side="left", padx=(0, 6))
+
         self.opt_threads = ctk.CTkOptionMenu(
             ctrl_inner,
             values=["1", "2", "3", "4", "5", "6", "8"],
@@ -373,7 +405,23 @@ class MainWindow(ctk.CTk):
         self.opt_threads.pack(side="left", padx=(0, 15))
 
         # Settings: Delay
-        ctk.CTkLabel(ctrl_inner, text="Jeda (detik):", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(ctrl_inner, text="Jeda (detik):", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(side="left", padx=(0, 3))
+        btn_delay_help = ctk.CTkButton(
+            ctrl_inner,
+            text="?",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            fg_color="#1E293B",
+            hover_color="#334155",
+            text_color="#38BDF8",
+            border_width=1,
+            border_color="#334155",
+            width=18,
+            height=18,
+            corner_radius=9,
+            command=lambda: self.show_help_dialog("delay")
+        )
+        btn_delay_help.pack(side="left", padx=(0, 6))
+
         self.opt_delay = ctk.CTkOptionMenu(
             ctrl_inner,
             values=["1.0", "1.5", "2.0", "3.0", "5.0", "8.0", "10.0"],
@@ -519,7 +567,8 @@ class MainWindow(ctk.CTk):
             table_container, 
             on_delete_callback=self.on_row_deleted,
             on_retry_single_callback=self.retry_single_domain,
-            on_retry_failed_callback=self.retry_failed
+            on_retry_failed_callback=self.retry_failed,
+            on_status_callback=lambda msg: self.lbl_status.configure(text=msg, text_color="#38BDF8")
         )
         self.table_view.pack(fill="both", expand=True, padx=8, pady=8)
 
@@ -613,6 +662,9 @@ class MainWindow(ctk.CTk):
         self.config["captcha_api_key"] = key
         save_config(self.config)
 
+    def show_help_dialog(self, topic):
+        HelpInfoDialog(self, topic=topic)
+
     def check_updates_manual(self):
         update_url = self.config.get("update_url", "")
         # Otomatis mencari endpoint update seperti cara kerja FlarePilot
@@ -645,13 +697,13 @@ class MainWindow(ctk.CTk):
 
                 self.txt_domains.delete("1.0", "end")
                 self.txt_domains.insert("end", "\n".join(unique_domains))
-                messagebox.showinfo("Sukses Import", f"Berhasil memuat {len(unique_domains)} domain unik dari file.")
+                self.lbl_status.configure(text=f"✅ Berhasil memuat {len(unique_domains)} domain unik dari file.", text_color="#10B981")
         except Exception as e:
-            messagebox.showerror("Error", f"Gagal membaca file: {e}")
+            self.lbl_status.configure(text=f"❌ Gagal membaca file: {e}", text_color="#EF4444")
 
     def export_csv(self):
         if not self.all_data:
-            messagebox.showwarning("Peringatan", "Belum ada data untuk diekspor!")
+            self.lbl_status.configure(text="⚠️ Belum ada data untuk diekspor!", text_color="#F59E0B")
             return
 
         filepath = filedialog.asksaveasfilename(
@@ -663,18 +715,18 @@ class MainWindow(ctk.CTk):
 
         success, err = export_to_csv(filepath, self.all_data)
         if success:
-            messagebox.showinfo("Sukses Export", f"Data berhasil disimpan ke:\n{filepath}")
+            self.lbl_status.configure(text=f"✅ Data berhasil disimpan ke: {os.path.basename(filepath)}", text_color="#10B981")
         else:
-            messagebox.showerror("Error", f"Gagal mengekspor file: {err}")
+            self.lbl_status.configure(text=f"❌ Gagal mengekspor file: {err}", text_color="#EF4444")
 
     def copy_by_status(self, status):
         domains = self.results.get(status, [])
         if not domains:
-            messagebox.showinfo("Info", f"Tidak ada data domain dengan status {status}.")
+            self.lbl_status.configure(text=f"ℹ️ Tidak ada data domain dengan status {status}.", text_color="#94A3B8")
             return
         self.clipboard_clear()
         self.clipboard_append("\n".join(domains))
-        messagebox.showinfo("Tersalin", f"Berhasil menyalin {len(domains)} domain ({status}) ke clipboard!")
+        self.lbl_status.configure(text=f"✅ Berhasil menyalin {len(domains)} domain ({status}) ke clipboard!", text_color="#10B981")
 
     def update_domain_result(self, idx_no, domain, status, count, detail):
         for cat in ("INDEX", "UN-INDEX", "FAILED"):
@@ -707,7 +759,7 @@ class MainWindow(ctk.CTk):
 
     def clear_table(self):
         if self.is_checking:
-            messagebox.showwarning("Peringatan", "Hentikan pengecekan terlebih dahulu!")
+            self.lbl_status.configure(text="⚠️ Hentikan pengecekan terlebih dahulu sebelum mereset tabel!", text_color="#F59E0B")
             return
         self.table_view.clear()
         self.results = {"INDEX": [], "UN-INDEX": [], "FAILED": []}
@@ -716,7 +768,7 @@ class MainWindow(ctk.CTk):
         self.update_badges(0)
         self.progressbar.set(0)
         self.lbl_progress.configure(text="0 / 0 (0%)")
-        self.lbl_status.configure(text="Tabel berhasil direset.")
+        self.lbl_status.configure(text="Tabel berhasil direset.", text_color="#94A3B8")
         if hasattr(self, 'btn_retry_failed'):
             self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
 
@@ -743,7 +795,7 @@ class MainWindow(ctk.CTk):
         domains = [d for d in cleaned_domains if not (d.lower() in seen or seen.add(d.lower()))]
 
         if not domains:
-            messagebox.showwarning("Peringatan", "Daftar domain masih kosong!\nMasukkan domain terlebih dahulu.")
+            self.lbl_status.configure(text="⚠️ Daftar domain masih kosong! Masukkan domain terlebih dahulu.", text_color="#EF4444")
             return
 
         raw_proxies = self.txt_proxy.get("1.0", "end")
@@ -804,14 +856,14 @@ class MainWindow(ctk.CTk):
         Melakukan pencarian/pengecekan index ulang khusus untuk domain yang berstatus GAGAL (FAILED).
         """
         if self.is_checking:
-            messagebox.showwarning("Sedang Berjalan", "Tunggu hingga proses saat ini selesai atau klik Berhenti terlebih dahulu.")
+            self.lbl_status.configure(text="⚠️ Proses masih berjalan. Tunggu atau klik Berhenti terlebih dahulu.", text_color="#F59E0B")
             return
 
         failed_tasks = [
             (row[0], row[1]) for row in self.all_data if row[2] == "FAILED"
         ]
         if not failed_tasks:
-            messagebox.showinfo("Cek Ulang", "Tidak ada domain yang berstatus GAGAL untuk dicek ulang.")
+            self.lbl_status.configure(text="ℹ️ Tidak ada domain yang berstatus GAGAL untuk dicek ulang.", text_color="#94A3B8")
             return
 
         use_captcha = self.var_captcha.get()
@@ -851,7 +903,7 @@ class MainWindow(ctk.CTk):
         Cek ulang hanya satu domain yang dipilih dari menu klik kanan.
         """
         if self.is_checking:
-            messagebox.showwarning("Sedang Berjalan", "Tunggu hingga proses saat ini selesai atau klik Berhenti terlebih dahulu.")
+            self.lbl_status.configure(text="⚠️ Proses masih berjalan. Tunggu atau klik Berhenti terlebih dahulu.", text_color="#F59E0B")
             return
 
         use_captcha = self.var_captcha.get()
@@ -942,16 +994,11 @@ class MainWindow(ctk.CTk):
                     threading.Thread(target=self.refresh_balance, daemon=True).start()
 
                     if self.engine.stop_requested:
-                        self.lbl_status.configure(text="Pengecekan dihentikan oleh pengguna.")
-                        messagebox.showwarning("Dihentikan", "Pengecekan telah dihentikan.")
+                        self.lbl_status.configure(text="⏹ Pengecekan dihentikan oleh pengguna.", text_color="#F59E0B")
                     else:
-                        self.lbl_status.configure(text=f"Selesai! {len(self.all_data)} domain telah diproses.")
-                        messagebox.showinfo(
-                            "Selesai", 
-                            f"Pengecekan selesai!\n\n"
-                            f"• INDEX: {len(self.results['INDEX'])}\n"
-                            f"• UN-INDEX: {len(self.results['UN-INDEX'])}\n"
-                            f"• GAGAL: {len(self.results['FAILED'])}"
+                        self.lbl_status.configure(
+                            text=f"✅ Pengecekan selesai! {len(self.all_data)} domain telah diproses • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                            text_color="#10B981"
                         )
 
         except queue.Empty:
