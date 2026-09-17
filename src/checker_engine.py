@@ -162,19 +162,27 @@ class CheckerEngine:
             except Exception:
                 pass
 
-    def run_supervisor(self, domains, proxies_list, num_threads, base_delay, use_2captcha, api_key_2captcha):
+    def run_supervisor(self, items, proxies_list, num_threads, base_delay, use_2captcha, api_key_2captcha, is_task_list=False):
         """
         Thread supervisor yang membagi tugas ke pool worker.
+        Jika is_task_list=True, items adalah list tuple [(index_no, domain), ...].
+        Jika is_task_list=False, items adalah list domain ['domain1', 'domain2', ...].
         """
         self.stop_requested = False
         self.worker_drivers = []
         self.active_threads = []
 
         task_queue = queue.Queue()
-        for idx, d in enumerate(domains, start=1):
-            task_queue.put((idx, d))
+        if is_task_list:
+            for idx, d in items:
+                task_queue.put((idx, d))
+            total_items = len(items)
+        else:
+            for idx, d in enumerate(items, start=1):
+                task_queue.put((idx, d))
+            total_items = len(items)
 
-        actual_threads = max(1, min(num_threads, len(domains)))
+        actual_threads = max(1, min(num_threads, total_items)) if total_items > 0 else 1
         threads = []
 
         for _ in range(actual_threads):
@@ -208,7 +216,8 @@ class CheckerEngine:
                     break
 
                 index_no, domain = task
-                self.gui_queue.put(("STATUS", f"Sedang memeriksa ({index_no}): {domain}..."))
+                self.gui_queue.put(("ROW_START", (index_no, domain)))
+                self.gui_queue.put(("STATUS", f"Sedang memeriksa (#{index_no}): {domain}..."))
 
                 status, pages, detail = "FAILED", "N/A", "Error"
                 try:
@@ -221,11 +230,15 @@ class CheckerEngine:
                     # Jika terdeteksi CAPTCHA dan opsi 2Captcha aktif
                     if status == "CAPTCHA":
                         if use_2captcha and api_key_2captcha:
+                            def captcha_status_cb(m):
+                                self.gui_queue.put(("STATUS", m))
+                                self.gui_queue.put(("ROW_UPDATE", (index_no, domain, "⏳ CAPTCHA", "⏳", f"2Captcha: {m}")))
+
                             solved, msg = solve_google_recaptcha(
                                 driver=driver,
                                 api_key=api_key_2captcha,
                                 domain=domain,
-                                status_callback=lambda m: self.gui_queue.put(("STATUS", m)),
+                                status_callback=captcha_status_cb,
                                 stop_check_callback=lambda: self.stop_requested
                             )
                             if solved:

@@ -27,6 +27,7 @@ class MainWindow(ctk.CTk):
 
         # State storage
         self.results = {"INDEX": [], "UN-INDEX": [], "FAILED": []}
+        self.data_by_index = {}
         self.all_data = []
         self.gui_queue = queue.Queue()
         self.is_checking = False
@@ -418,7 +419,26 @@ class MainWindow(ctk.CTk):
             state="disabled",
             command=self.stop_checking
         )
-        self.btn_stop.pack(side="left", padx=(0, 10))
+        self.btn_stop.pack(side="left", padx=(0, 8))
+
+        # Tombol Cek Ulang Khusus Domain yang Gagal
+        self.btn_retry_failed = ctk.CTkButton(
+            ctrl_inner,
+            text="🔄  Cek Ulang Gagal",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#78350F",
+            hover_color="#92400E",
+            text_color="#FFFFFF",
+            text_color_disabled="#64748B",
+            border_width=1,
+            border_color="#B45309",
+            height=32,
+            width=140,
+            corner_radius=8,
+            state="disabled",
+            command=self.retry_failed
+        )
+        self.btn_retry_failed.pack(side="left", padx=(0, 10))
 
         # Reset & Export Buttons
         btn_clear = ctk.CTkButton(
@@ -495,7 +515,12 @@ class MainWindow(ctk.CTk):
         table_container = ctk.CTkFrame(body, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1E293B")
         table_container.pack(fill="both", expand=True, pady=(0, 10))
 
-        self.table_view = ModernTableView(table_container, on_delete_callback=self.on_row_deleted)
+        self.table_view = ModernTableView(
+            table_container, 
+            on_delete_callback=self.on_row_deleted,
+            on_retry_single_callback=self.retry_single_domain,
+            on_retry_failed_callback=self.retry_failed
+        )
         self.table_view.pack(fill="both", expand=True, padx=8, pady=8)
 
         # 6. Bottom Quick-Copy Toolbar & Status Bar
@@ -651,13 +676,34 @@ class MainWindow(ctk.CTk):
         self.clipboard_append("\n".join(domains))
         messagebox.showinfo("Tersalin", f"Berhasil menyalin {len(domains)} domain ({status}) ke clipboard!")
 
+    def update_domain_result(self, idx_no, domain, status, count, detail):
+        for cat in ("INDEX", "UN-INDEX", "FAILED"):
+            if domain in self.results[cat]:
+                self.results[cat].remove(domain)
+        if status in self.results:
+            self.results[status].append(domain)
+        self.data_by_index[idx_no] = [idx_no, domain, status, count, detail]
+        self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
+
     def on_row_deleted(self, values):
+        try:
+            idx_no = int(values[0])
+        except Exception:
+            idx_no = None
         domain = values[1]
         status = values[2]
         if status in self.results and domain in self.results[status]:
             self.results[status].remove(domain)
-        self.all_data = [row for row in self.all_data if row[1] != domain]
+        if idx_no is not None and idx_no in self.data_by_index:
+            del self.data_by_index[idx_no]
+        self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
         self.update_badges(len(self.all_data))
+        failed_count = len(self.results["FAILED"])
+        if hasattr(self, 'btn_retry_failed'):
+            if failed_count > 0:
+                self.btn_retry_failed.configure(state="normal", fg_color="#B45309", text=f"🔄  Cek Ulang Gagal ({failed_count})")
+            else:
+                self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
 
     def clear_table(self):
         if self.is_checking:
@@ -665,11 +711,14 @@ class MainWindow(ctk.CTk):
             return
         self.table_view.clear()
         self.results = {"INDEX": [], "UN-INDEX": [], "FAILED": []}
+        self.data_by_index = {}
         self.all_data = []
         self.update_badges(0)
         self.progressbar.set(0)
         self.lbl_progress.configure(text="0 / 0 (0%)")
         self.lbl_status.configure(text="Tabel berhasil direset.")
+        if hasattr(self, 'btn_retry_failed'):
+            self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
 
     def update_badges(self, total_target):
         self.badge_total.value_label.configure(text=str(total_target))
@@ -718,9 +767,14 @@ class MainWindow(ctk.CTk):
                 return
             use_captcha = False
 
-        # Reset & Set Max
+        # Reset & Pre-populasi tabel dari awal berurutan 1, 2, 3...
         self.clear_table()
         self.total_tasks = len(domains)
+        self.table_view.populate_initial_rows(domains)
+
+        self.data_by_index = {idx: [idx, d, "QUEUED", "-", "Dalam antrean..."] for idx, d in enumerate(domains, start=1)}
+        self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
+
         self.update_badges(self.total_tasks)
         self.progressbar.set(0)
         self.lbl_progress.configure(text=f"0 / {self.total_tasks} (0%)")
@@ -728,6 +782,7 @@ class MainWindow(ctk.CTk):
         # Update State
         self.is_checking = True
         self.btn_start.configure(state="disabled")
+        self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
         self.btn_stop.configure(state="normal", fg_color="#DC2626")
         self.opt_threads.configure(state="disabled")
         self.opt_delay.configure(state="disabled")
@@ -740,7 +795,91 @@ class MainWindow(ctk.CTk):
         # Supervisor thread
         threading.Thread(
             target=self.engine.run_supervisor,
-            args=(domains, proxies_list, num_threads, base_delay, use_captcha, api_key_captcha),
+            args=(domains, proxies_list, num_threads, base_delay, use_captcha, api_key_captcha, False),
+            daemon=True
+        ).start()
+
+    def retry_failed(self):
+        """
+        Melakukan pencarian/pengecekan index ulang khusus untuk domain yang berstatus GAGAL (FAILED).
+        """
+        if self.is_checking:
+            messagebox.showwarning("Sedang Berjalan", "Tunggu hingga proses saat ini selesai atau klik Berhenti terlebih dahulu.")
+            return
+
+        failed_tasks = [
+            (row[0], row[1]) for row in self.all_data if row[2] == "FAILED"
+        ]
+        if not failed_tasks:
+            messagebox.showinfo("Cek Ulang", "Tidak ada domain yang berstatus GAGAL untuk dicek ulang.")
+            return
+
+        use_captcha = self.var_captcha.get()
+        api_key_captcha = self.entry_captcha.get().strip()
+        raw_proxies = self.txt_proxy.get("1.0", "end")
+        proxies_list = [p.strip() for p in raw_proxies.split("\n") if p.strip()]
+
+        num_threads = int(self.opt_threads.get())
+        base_delay = float(self.opt_delay.get())
+
+        for idx, domain in failed_tasks:
+            self.table_view.set_row_queued(idx, domain)
+            if domain in self.results["FAILED"]:
+                self.results["FAILED"].remove(domain)
+            self.data_by_index[idx] = [idx, domain, "QUEUED", "-", "Menunggu antrean cek ulang..."]
+
+        self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
+        self.update_badges(len(self.data_by_index))
+
+        self.is_checking = True
+        self.btn_start.configure(state="disabled")
+        self.btn_retry_failed.configure(state="disabled")
+        self.btn_stop.configure(state="normal", fg_color="#DC2626")
+        self.opt_threads.configure(state="disabled")
+        self.opt_delay.configure(state="disabled")
+
+        self.lbl_status.configure(text=f"Menjalankan cek ulang untuk {len(failed_tasks)} domain yang gagal...")
+
+        threading.Thread(
+            target=self.engine.run_supervisor,
+            args=(failed_tasks, proxies_list, num_threads, base_delay, use_captcha, api_key_captcha, True),
+            daemon=True
+        ).start()
+
+    def retry_single_domain(self, domain, index_no):
+        """
+        Cek ulang hanya satu domain yang dipilih dari menu klik kanan.
+        """
+        if self.is_checking:
+            messagebox.showwarning("Sedang Berjalan", "Tunggu hingga proses saat ini selesai atau klik Berhenti terlebih dahulu.")
+            return
+
+        use_captcha = self.var_captcha.get()
+        api_key_captcha = self.entry_captcha.get().strip()
+        raw_proxies = self.txt_proxy.get("1.0", "end")
+        proxies_list = [p.strip() for p in raw_proxies.split("\n") if p.strip()]
+
+        num_threads = 1
+        base_delay = float(self.opt_delay.get())
+
+        self.table_view.set_row_queued(index_no, domain)
+        for cat in ("INDEX", "UN-INDEX", "FAILED"):
+            if domain in self.results[cat]:
+                self.results[cat].remove(domain)
+        self.data_by_index[index_no] = [index_no, domain, "QUEUED", "-", "Menunggu antrean cek ulang..."]
+        self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
+        self.update_badges(len(self.data_by_index))
+
+        self.is_checking = True
+        self.btn_start.configure(state="disabled")
+        self.btn_retry_failed.configure(state="disabled")
+        self.btn_stop.configure(state="normal", fg_color="#DC2626")
+
+        self.lbl_status.configure(text=f"Cek ulang #{index_no} ({domain})...")
+
+        threading.Thread(
+            target=self.engine.run_supervisor,
+            args=([(index_no, domain)], proxies_list, num_threads, base_delay, use_captcha, api_key_captcha, True),
             daemon=True
         ).start()
 
@@ -756,15 +895,21 @@ class MainWindow(ctk.CTk):
             while True:
                 msg_type, data = self.gui_queue.get_nowait()
 
-                if msg_type == "RESULT":
+                if msg_type == "ROW_START":
+                    idx_no, domain = data
+                    self.table_view.set_row_checking(idx_no, domain)
+
+                elif msg_type == "ROW_UPDATE":
+                    idx_no, domain, st, cnt, dt = data
+                    self.table_view.update_row_detail(idx_no, domain, st, cnt, dt)
+
+                elif msg_type == "RESULT":
                     idx_no, domain, status, count, detail = data
-                    self.results[status].append(domain)
-                    self.all_data.append([idx_no, domain, status, count, detail])
+                    self.update_domain_result(idx_no, domain, status, count, detail)
+                    self.table_view.set_row_result(idx_no, domain, status, count, detail)
 
-                    self.table_view.insert_row(idx_no, domain, status, count, detail)
-
-                    done = len(self.all_data)
-                    tot = getattr(self, "total_tasks", done)
+                    done = sum(1 for row in self.data_by_index.values() if row[2] in ("INDEX", "UN-INDEX", "FAILED"))
+                    tot = getattr(self, "total_tasks", len(self.data_by_index))
                     self.update_badges(tot)
                     frac = done / tot if tot > 0 else 0
                     self.progressbar.set(frac)
@@ -787,13 +932,20 @@ class MainWindow(ctk.CTk):
                     self.opt_threads.configure(state="normal")
                     self.opt_delay.configure(state="normal")
 
+                    # Perbarui status tombol Cek Ulang Gagal
+                    failed_count = len(self.results["FAILED"])
+                    if failed_count > 0:
+                        self.btn_retry_failed.configure(state="normal", fg_color="#B45309", text=f"🔄  Cek Ulang Gagal ({failed_count})")
+                    else:
+                        self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
+
                     threading.Thread(target=self.refresh_balance, daemon=True).start()
 
                     if self.engine.stop_requested:
                         self.lbl_status.configure(text="Pengecekan dihentikan oleh pengguna.")
                         messagebox.showwarning("Dihentikan", "Pengecekan telah dihentikan.")
                     else:
-                        self.lbl_status.configure(text=f"Selesai! {len(self.all_data)} domain telah diperiksa.")
+                        self.lbl_status.configure(text=f"Selesai! {len(self.all_data)} domain telah diproses.")
                         messagebox.showinfo(
                             "Selesai", 
                             f"Pengecekan selesai!\n\n"
