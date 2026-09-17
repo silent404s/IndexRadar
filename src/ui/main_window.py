@@ -388,9 +388,12 @@ class MainWindow(ctk.CTk):
             ctrl_inner,
             text="⏹  Berhenti",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
-            fg_color="#DC2626",
+            fg_color="#450A0A",
             hover_color="#B91C1C",
             text_color="#FFFFFF",
+            text_color_disabled="#FFFFFF",
+            border_width=1,
+            border_color="#7F1D1D",
             height=32,
             width=100,
             corner_radius=8,
@@ -699,7 +702,7 @@ class MainWindow(ctk.CTk):
         # Update State
         self.is_checking = True
         self.btn_start.configure(state="disabled")
-        self.btn_stop.configure(state="normal")
+        self.btn_stop.configure(state="normal", fg_color="#DC2626")
         self.opt_threads.configure(state="disabled")
         self.opt_delay.configure(state="disabled")
 
@@ -754,7 +757,7 @@ class MainWindow(ctk.CTk):
                 elif msg_type == "ALL_DONE":
                     self.is_checking = False
                     self.btn_start.configure(state="normal")
-                    self.btn_stop.configure(state="disabled")
+                    self.btn_stop.configure(state="disabled", fg_color="#450A0A")
                     self.opt_threads.configure(state="normal")
                     self.opt_delay.configure(state="normal")
 
