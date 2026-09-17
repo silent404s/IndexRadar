@@ -61,7 +61,10 @@ class AboutDialog(ctk.CTkToplevel):
             text="🌐 Kunjungi Repository GitHub",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             command=lambda: webbrowser.open("https://github.com/silent404s/IndexRadar")
         )
         btn_repo.pack(pady=(0, 15))
@@ -70,8 +73,9 @@ class AboutDialog(ctk.CTkToplevel):
             frame, 
             text="Tutup", 
             font=ctk.CTkFont(family="Segoe UI", size=11),
-            fg_color="#334155", 
-            hover_color="#475569",
+            fg_color="#1E293B", 
+            hover_color="#0F172A",
+            text_color="#FFFFFF",
             width=100,
             command=self.destroy
         )
@@ -106,7 +110,25 @@ class SettingsDialog(ctk.CTkToplevel):
         ctk.CTkLabel(frame, text="2Captcha API Key:", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=20, pady=(5, 2))
         self.entry_key = ctk.CTkEntry(frame, font=ctk.CTkFont(family="Consolas", size=11), fg_color="#0B0F19", border_color="#334155")
         self.entry_key.insert(0, current_config.get("captcha_api_key", ""))
-        self.entry_key.pack(fill="x", padx=20, pady=(0, 20))
+        self.entry_key.pack(fill="x", padx=20, pady=(0, 10))
+
+        # Update Check URL
+        ctk.CTkLabel(frame, text="Update Check URL (GitHub Raw):", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color="#94A3B8").pack(anchor="w", padx=20, pady=(5, 2))
+        self.entry_url = ctk.CTkEntry(frame, font=ctk.CTkFont(family="Consolas", size=10), fg_color="#0B0F19", border_color="#334155")
+        self.entry_url.insert(0, current_config.get("update_url", ""))
+        self.entry_url.pack(fill="x", padx=20, pady=(0, 12))
+
+        # Auto Check Toggle
+        self.var_auto_update = ctk.BooleanVar(value=current_config.get("auto_check_updates", True))
+        chk_update = ctk.CTkCheckBox(
+            frame,
+            text="Periksa pembaruan aplikasi secara otomatis saat startup",
+            variable=self.var_auto_update,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            fg_color="#10B981",
+            hover_color="#059669"
+        )
+        chk_update.pack(anchor="w", padx=20, pady=(0, 15))
         
         # Buttons
         btn_box = ctk.CTkFrame(frame, fg_color="transparent")
@@ -118,6 +140,7 @@ class SettingsDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             fg_color="#10B981",
             hover_color="#059669",
+            text_color="#FFFFFF",
             command=self.save_settings
         )
         btn_save.pack(side="left", fill="x", expand=True, padx=(0, 5))
@@ -126,8 +149,9 @@ class SettingsDialog(ctk.CTkToplevel):
             btn_box, 
             text="Batal", 
             font=ctk.CTkFont(family="Segoe UI", size=12),
-            fg_color="#334155",
-            hover_color="#475569",
+            fg_color="#1E293B",
+            hover_color="#0F172A",
+            text_color="#FFFFFF",
             width=90,
             command=self.destroy
         )
@@ -135,7 +159,10 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def save_settings(self):
         new_key = self.entry_key.get().strip()
+        new_url = self.entry_url.get().strip()
         self.current_config["captcha_api_key"] = new_key
+        self.current_config["update_url"] = new_url
+        self.current_config["auto_check_updates"] = self.var_auto_update.get()
         
         if self.on_save_callback:
             self.on_save_callback(self.current_config)

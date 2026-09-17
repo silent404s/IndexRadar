@@ -70,6 +70,12 @@ class MainWindow(ctk.CTk):
         else:
             self.lbl_balance.configure(text="Saldo: Belum setting key", text_color="#94A3B8")
 
+        # Auto check updates (seperti FlarePilot)
+        if self.config.get("auto_check_updates", True):
+            update_url = self.config.get("update_url", "")
+            if update_url:
+                check_for_updates(self, CURRENT_VERSION, update_url, silent=True)
+
     def refresh_balance(self):
         api_key = self.config.get("captcha_api_key", "").strip()
         if not api_key:
@@ -156,6 +162,20 @@ class MainWindow(ctk.CTk):
         )
         btn_refresh_bal.pack(side="left", padx=(0, 4), pady=2)
 
+        # Update button (seperti FlarePilot)
+        btn_update = ctk.CTkButton(
+            header_right,
+            text="⚡ Cek Update",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#059669",
+            hover_color="#047857",
+            text_color="#FFFFFF",
+            height=30,
+            corner_radius=8,
+            command=self.check_updates_manual
+        )
+        btn_update.pack(side="left", padx=(0, 8))
+
         # Settings button
         btn_settings = ctk.CTkButton(
             header_right,
@@ -164,7 +184,10 @@ class MainWindow(ctk.CTk):
             height=30,
             corner_radius=8,
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=self.open_settings
         )
@@ -178,7 +201,10 @@ class MainWindow(ctk.CTk):
             height=30,
             corner_radius=8,
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             command=lambda: AboutDialog(self, CURRENT_VERSION)
         )
@@ -209,11 +235,14 @@ class MainWindow(ctk.CTk):
         btn_clear_domain = ctk.CTkButton(
             domain_header,
             text="🧹 Bersihkan",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             height=24,
-            width=70,
+            width=80,
             corner_radius=6,
             command=lambda: self.txt_domains.delete("1.0", "end")
         )
@@ -222,11 +251,14 @@ class MainWindow(ctk.CTk):
         btn_import = ctk.CTkButton(
             domain_header,
             text="📂 Import File (.txt / .csv)",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             height=24,
-            width=130,
+            width=140,
             corner_radius=6,
             command=self.import_file
         )
@@ -261,11 +293,14 @@ class MainWindow(ctk.CTk):
         btn_clear_proxy = ctk.CTkButton(
             proxy_header,
             text="🧹 Bersihkan",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             height=24,
-            width=70,
+            width=80,
             corner_radius=6,
             command=lambda: self.txt_proxy.delete("1.0", "end")
         )
@@ -300,6 +335,7 @@ class MainWindow(ctk.CTk):
             corner_radius=6,
             fg_color="#1E293B",
             button_color="#334155",
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=11)
         )
         self.opt_threads.set(str(self.config.get("threads", 2)))
@@ -315,6 +351,7 @@ class MainWindow(ctk.CTk):
             corner_radius=6,
             fg_color="#1E293B",
             button_color="#334155",
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=11)
         )
         self.opt_delay.set(str(self.config.get("delay", 2.0)))
@@ -339,6 +376,7 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             fg_color="#10B981",
             hover_color="#059669",
+            text_color="#FFFFFF",
             height=32,
             width=120,
             corner_radius=8,
@@ -350,8 +388,9 @@ class MainWindow(ctk.CTk):
             ctrl_inner,
             text="⏹  Berhenti",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
-            fg_color="#EF4444",
-            hover_color="#DC2626",
+            fg_color="#DC2626",
+            hover_color="#B91C1C",
+            text_color="#FFFFFF",
             height=32,
             width=100,
             corner_radius=8,
@@ -364,9 +403,12 @@ class MainWindow(ctk.CTk):
         btn_clear = ctk.CTkButton(
             ctrl_inner,
             text="🗑  Reset",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             fg_color="#1E293B",
-            hover_color="#334155",
+            hover_color="#0F172A",
+            border_width=1,
+            border_color="#334155",
+            text_color="#FFFFFF",
             height=32,
             width=80,
             corner_radius=8,
@@ -380,6 +422,7 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             fg_color="#0284C7",
             hover_color="#0369A1",
+            text_color="#FFFFFF",
             height=32,
             width=110,
             corner_radius=8,
@@ -450,41 +493,47 @@ class MainWindow(ctk.CTk):
 
         btn_copy_index = ctk.CTkButton(
             bottom_inner,
-            text="📋 INDEX",
+            text="📋 Salin INDEX",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
-            fg_color="#14532D",
-            hover_color="#166534",
-            text_color="#86EFAC",
-            height=26,
-            width=85,
+            fg_color="#065F46",
+            hover_color="#047857",
+            border_width=1,
+            border_color="#10B981",
+            text_color="#FFFFFF",
+            height=28,
+            width=110,
             corner_radius=6,
             command=lambda: self.copy_by_status("INDEX")
         )
-        btn_copy_index.pack(side="left", padx=(0, 5))
+        btn_copy_index.pack(side="left", padx=(0, 6))
 
         btn_copy_unindex = ctk.CTkButton(
             bottom_inner,
-            text="📋 UN-INDEX",
+            text="📋 Salin UN-INDEX",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
-            fg_color="#78350F",
-            hover_color="#92400E",
-            text_color="#FDE68A",
-            height=26,
-            width=100,
+            fg_color="#92400E",
+            hover_color="#B45309",
+            border_width=1,
+            border_color="#F59E0B",
+            text_color="#FFFFFF",
+            height=28,
+            width=125,
             corner_radius=6,
             command=lambda: self.copy_by_status("UN-INDEX")
         )
-        btn_copy_unindex.pack(side="left", padx=(0, 5))
+        btn_copy_unindex.pack(side="left", padx=(0, 6))
 
         btn_copy_failed = ctk.CTkButton(
             bottom_inner,
-            text="📋 GAGAL",
+            text="📋 Salin GAGAL",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
-            fg_color="#7F1D1D",
-            hover_color="#991B1B",
-            text_color="#FECACA",
-            height=26,
-            width=85,
+            fg_color="#991B1B",
+            hover_color="#DC2626",
+            border_width=1,
+            border_color="#EF4444",
+            text_color="#FFFFFF",
+            height=28,
+            width=110,
             corner_radius=6,
             command=lambda: self.copy_by_status("FAILED")
         )
@@ -507,6 +556,10 @@ class MainWindow(ctk.CTk):
         lbl_v.pack(side="left", padx=(0, 8), pady=3)
         frame.value_label = lbl_v
         return frame
+
+    def check_updates_manual(self):
+        update_url = self.config.get("update_url", "")
+        check_for_updates(self, CURRENT_VERSION, update_url, silent=False)
 
     def open_settings(self):
         def on_saved(new_cfg):
