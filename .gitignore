@@ -1,0 +1,32 @@
+# Configuration & Sensitive Data
+config.json
+data/
+*.log
+*.env
+.env
+
+# Python Build & Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.spec
+
+# Output Setup & Zips
+!Output/
+!Output/*.exe
+*.zip
+
+# Virtual Environments
+venv/
+env/
+ENV/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+{
+    "version": "1.0.0",
+    "download_url": "https://github.com/silent404s/IndexRadar/raw/main/Output/IndexRadar_Setup_v1.0.0.exe",
+    "force_update": false,
+    "release_notes": "✨ Versi 1.0.0 (Initial Pro Release):\n- Desain antarmuka modern & responsif dengan CustomTkinter Dark Mode.\n- Sistem multi-threaded bulk Google Index Checker menggunakan engine headless anti-detection.\n- Integrasi otomatis 2Captcha solver untuk bypass kendala CAPTCHA.\n- Fitur Quick-Copy terpisah (INDEX, UN-INDEX, GAGAL).\n- Fitur ekspor laporan CSV berstandar UTF-8 BOM.\n- Sistem pelacakan update otomatis terintegrasi."
+}
