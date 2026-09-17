@@ -12,7 +12,7 @@ from ..captcha_service import get_2captcha_balance
 from ..checker_engine import CheckerEngine, clean_domain
 from ..export_utils import export_to_csv
 from .table_view import ModernTableView
-from .dialogs import AboutDialog, SettingsDialog
+from .dialogs import AboutDialog
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -64,23 +64,26 @@ class MainWindow(ctk.CTk):
 
     def check_initial_state(self):
         # Auto check 2Captcha balance
-        api_key = self.config.get("captcha_api_key", "").strip()
+        api_key = self.entry_captcha.get().strip() if hasattr(self, 'entry_captcha') else self.config.get("captcha_api_key", "").strip()
         if api_key:
             threading.Thread(target=self.refresh_balance, daemon=True).start()
         else:
-            self.lbl_balance.configure(text="Saldo: Belum setting key", text_color="#94A3B8")
+            self.lbl_balance.configure(text="Belum diisi", text_color="#94A3B8")
 
-        # Auto check updates (seperti FlarePilot)
-        if self.config.get("auto_check_updates", True):
-            update_url = self.config.get("update_url", "")
-            if update_url:
-                check_for_updates(self, CURRENT_VERSION, update_url, silent=True)
+        # Otomatis periksa pembaruan aplikasi setiap kali buka aplikasi (seperti FlarePilot)
+        update_url = self.config.get("update_url", "")
+        check_for_updates(self, CURRENT_VERSION, update_url, silent=True)
 
     def refresh_balance(self):
-        api_key = self.config.get("captcha_api_key", "").strip()
+        api_key = self.entry_captcha.get().strip() if hasattr(self, 'entry_captcha') else self.config.get("captcha_api_key", "").strip()
         if not api_key:
-            self.gui_queue.put(("BALANCE", ("Belum ada key", "#94A3B8")))
+            self.gui_queue.put(("BALANCE", ("Belum diisi", "#94A3B8")))
             return
+
+        # Simpan otomatis ke config saat cek saldo
+        if self.config.get("captcha_api_key") != api_key:
+            self.config["captcha_api_key"] = api_key
+            save_config(self.config)
 
         self.gui_queue.put(("BALANCE", ("Memeriksa...", "#F59E0B")))
         bal = get_2captcha_balance(api_key)
@@ -130,38 +133,6 @@ class MainWindow(ctk.CTk):
         header_right = ctk.CTkFrame(header, fg_color="transparent")
         header_right.pack(side="right", padx=16, pady=10)
 
-        # 2Captcha Balance Widget
-        bal_box = ctk.CTkFrame(header_right, fg_color="#1E293B", corner_radius=8)
-        bal_box.pack(side="left", padx=(0, 10))
-
-        ctk.CTkLabel(
-            bal_box, 
-            text="💰 2Captcha:", 
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color="#94A3B8"
-        ).pack(side="left", padx=(10, 4), pady=4)
-
-        self.lbl_balance = ctk.CTkLabel(
-            bal_box, 
-            text="Memuat...", 
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color="#10B981"
-        )
-        self.lbl_balance.pack(side="left", padx=(0, 6), pady=4)
-
-        btn_refresh_bal = ctk.CTkButton(
-            bal_box,
-            text="🔄",
-            width=26,
-            height=24,
-            corner_radius=6,
-            fg_color="transparent",
-            hover_color="#334155",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
-            command=lambda: threading.Thread(target=self.refresh_balance, daemon=True).start()
-        )
-        btn_refresh_bal.pack(side="left", padx=(0, 4), pady=2)
-
         # Update button (seperti FlarePilot)
         btn_update = ctk.CTkButton(
             header_right,
@@ -175,23 +146,6 @@ class MainWindow(ctk.CTk):
             command=self.check_updates_manual
         )
         btn_update.pack(side="left", padx=(0, 8))
-
-        # Settings button
-        btn_settings = ctk.CTkButton(
-            header_right,
-            text="⚙️",
-            width=32,
-            height=30,
-            corner_radius=8,
-            fg_color="#1E293B",
-            hover_color="#0F172A",
-            border_width=1,
-            border_color="#334155",
-            text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
-            command=self.open_settings
-        )
-        btn_settings.pack(side="left", padx=(0, 6))
 
         # About button
         btn_about = ctk.CTkButton(
@@ -318,6 +272,82 @@ class MainWindow(ctk.CTk):
         )
         self.txt_proxy.pack(fill="both", expand=True, padx=12, pady=(0, 10))
 
+        # 2.5 Dedicated 2Captcha Configuration Card (Tampilan Utama)
+        card_captcha = ctk.CTkFrame(body, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1E293B")
+        card_captcha.pack(fill="x", pady=(0, 10))
+
+        captcha_inner = ctk.CTkFrame(card_captcha, fg_color="transparent")
+        captcha_inner.pack(fill="x", padx=14, pady=8)
+
+        # Toggle Aktifkan 2Captcha
+        self.var_captcha = ctk.BooleanVar(value=self.config.get("use_captcha", True))
+        chk_use_captcha = ctk.CTkCheckBox(
+            captcha_inner,
+            text="Aktifkan Auto-Solve CAPTCHA (2Captcha.com)",
+            variable=self.var_captcha,
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#10B981",
+            hover_color="#059669",
+            text_color="#F8FAFC",
+            command=self.on_toggle_captcha
+        )
+        chk_use_captcha.pack(side="left", padx=(0, 15))
+
+        # API Key Label & Input
+        ctk.CTkLabel(
+            captcha_inner, 
+            text="API Key:", 
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            text_color="#94A3B8"
+        ).pack(side="left", padx=(0, 6))
+
+        self.entry_captcha = ctk.CTkEntry(
+            captcha_inner,
+            placeholder_text="Masukkan 2Captcha API Key...",
+            font=ctk.CTkFont(family="Consolas", size=11),
+            fg_color="#0B0F19",
+            border_color="#334155",
+            text_color="#F8FAFC",
+            height=30,
+            width=320,
+            corner_radius=6
+        )
+        self.entry_captcha.insert(0, self.config.get("captcha_api_key", ""))
+        self.entry_captcha.pack(side="left", padx=(0, 10))
+        self.entry_captcha.bind("<FocusOut>", lambda e: self.on_captcha_key_changed())
+
+        # Tombol Cek Saldo
+        btn_check_bal = ctk.CTkButton(
+            captcha_inner,
+            text="💰 Cek Saldo",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            fg_color="#059669",
+            hover_color="#047857",
+            text_color="#FFFFFF",
+            height=30,
+            width=100,
+            corner_radius=6,
+            command=lambda: threading.Thread(target=self.refresh_balance, daemon=True).start()
+        )
+        btn_check_bal.pack(side="left", padx=(0, 12))
+
+        # Label Saldo Live
+        lbl_bal_title = ctk.CTkLabel(
+            captcha_inner,
+            text="Saldo:",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            text_color="#94A3B8"
+        )
+        lbl_bal_title.pack(side="left", padx=(0, 4))
+
+        self.lbl_balance = ctk.CTkLabel(
+            captcha_inner,
+            text="Memuat...",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            text_color="#10B981"
+        )
+        self.lbl_balance.pack(side="left")
+
         # 3. Action & Controls Bar
         controls_bar = ctk.CTkFrame(body, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1E293B")
         controls_bar.pack(fill="x", pady=(0, 10), ipady=4)
@@ -355,19 +385,7 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11)
         )
         self.opt_delay.set(str(self.config.get("delay", 2.0)))
-        self.opt_delay.pack(side="left", padx=(0, 15))
-
-        # Toggle Auto 2Captcha
-        self.var_captcha = ctk.BooleanVar(value=self.config.get("use_captcha", True))
-        chk_use_captcha = ctk.CTkCheckBox(
-            ctrl_inner,
-            text="Auto-Bypass CAPTCHA (2Captcha)",
-            variable=self.var_captcha,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            fg_color="#10B981",
-            hover_color="#059669"
-        )
-        chk_use_captcha.pack(side="left", padx=(0, 20))
+        self.opt_delay.pack(side="left", padx=(0, 20))
 
         # Start & Stop Buttons
         self.btn_start = ctk.CTkButton(
@@ -560,18 +578,20 @@ class MainWindow(ctk.CTk):
         frame.value_label = lbl_v
         return frame
 
+    def on_toggle_captcha(self):
+        val = self.var_captcha.get()
+        self.config["use_captcha"] = val
+        save_config(self.config)
+
+    def on_captcha_key_changed(self):
+        key = self.entry_captcha.get().strip()
+        self.config["captcha_api_key"] = key
+        save_config(self.config)
+
     def check_updates_manual(self):
         update_url = self.config.get("update_url", "")
+        # Otomatis mencari endpoint update seperti cara kerja FlarePilot
         check_for_updates(self, CURRENT_VERSION, update_url, silent=False)
-
-    def open_settings(self):
-        def on_saved(new_cfg):
-            self.config = new_cfg
-            save_config(self.config)
-            self.lbl_status.configure(text="Pengaturan berhasil disimpan.")
-            threading.Thread(target=self.refresh_balance, daemon=True).start()
-
-        SettingsDialog(self, self.config, on_save_callback=on_saved)
 
     def import_file(self):
         filepath = filedialog.askopenfilename(
@@ -681,14 +701,20 @@ class MainWindow(ctk.CTk):
         proxies_list = [p.strip() for p in raw_proxies.split("\n") if p.strip()]
 
         use_captcha = self.var_captcha.get()
-        api_key_captcha = self.config.get("captcha_api_key", "").strip()
+        api_key_captcha = self.entry_captcha.get().strip()
+
+        # Simpan config terbaru
+        self.config["use_captcha"] = use_captcha
+        self.config["captcha_api_key"] = api_key_captcha
+        save_config(self.config)
+
         if use_captcha and not api_key_captcha:
             resp = messagebox.askyesno(
-                "2Captcha Belum Diatur", 
-                "Fitur Auto-Bypass CAPTCHA aktif tetapi API Key belum diisi di Pengaturan.\n\nLanjutkan tanpa 2Captcha?"
+                "2Captcha Belum Diisi", 
+                "Fitur Auto-Solve CAPTCHA aktif tetapi API Key di kolom 2Captcha masih kosong.\n\nApakah Anda ingin melanjutkan pengecekan tanpa 2Captcha?"
             )
             if not resp:
-                self.open_settings()
+                self.entry_captcha.focus()
                 return
             use_captcha = False
 

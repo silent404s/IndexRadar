@@ -193,18 +193,18 @@ class UpdateDialog(ctk.CTkToplevel):
             webbrowser.open(url)
         self.destroy()
 
+DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/silent404s/IndexRadar/main/version.json"
+
 def check_for_updates(parent, current_version=CURRENT_VERSION, update_url="", silent=False):
     """
     Melakukan pemeriksaan pembaruan di background thread secara non-blocking.
+    Jika update_url kosong, otomatis menggunakan DEFAULT_UPDATE_URL (seperti FlarePilot).
     """
-    if not update_url:
-        if not silent:
-            messagebox.showwarning("Cek Pembaruan", "URL endpoint pembaruan belum dikonfigurasi.")
-        return
+    effective_url = update_url.strip() if update_url else DEFAULT_UPDATE_URL
 
     def worker():
         try:
-            info = fetch_remote_version_info(update_url)
+            info = fetch_remote_version_info(effective_url)
             remote_ver = info["version"]
             
             if parse_version(remote_ver) > parse_version(current_version):

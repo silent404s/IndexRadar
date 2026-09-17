@@ -30,6 +30,12 @@ def load_config():
             config = json.load(f)
             merged = DEFAULT_CONFIG.copy()
             merged.update(config)
+
+            # Auto-resolve update_url jika kosong agar persis seperti FlarePilot
+            if not merged.get("update_url"):
+                merged["update_url"] = DEFAULT_CONFIG["update_url"]
+                save_config(merged)
+
             return merged
     except Exception as e:
         print(f"[ConfigManager] Gagal membaca config.json: {e}")
