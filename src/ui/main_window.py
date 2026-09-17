@@ -974,8 +974,11 @@ class MainWindow(ctk.CTk):
                     text, color = data
                     self.lbl_balance.configure(text=text, text_color=color)
 
+                elif msg_type == "WORKER_ERROR":
+                    self.lbl_status.configure(text=f"❌ {data}", text_color="#EF4444")
+
                 elif msg_type == "LOG_ERROR":
-                    print(f"[-] {data}")
+                    self.lbl_status.configure(text=f"⚠️ {data}", text_color="#F59E0B")
 
                 elif msg_type == "ALL_DONE":
                     self.is_checking = False
@@ -993,11 +996,27 @@ class MainWindow(ctk.CTk):
 
                     threading.Thread(target=self.refresh_balance, daemon=True).start()
 
+                    processed_count = len(self.results["INDEX"]) + len(self.results["UN-INDEX"]) + len(self.results["FAILED"])
+                    total_count = getattr(self, "total_tasks", len(self.all_data))
+
                     if self.engine.stop_requested:
-                        self.lbl_status.configure(text="⏹ Pengecekan dihentikan oleh pengguna.", text_color="#F59E0B")
+                        self.lbl_status.configure(
+                            text=f"⏹ Pengecekan dihentikan oleh pengguna. ({processed_count}/{total_count} domain)",
+                            text_color="#F59E0B"
+                        )
+                    elif processed_count == 0 and total_count > 0:
+                        self.lbl_status.configure(
+                            text="❌ Pengecekan gagal! Tidak ada domain yang berhasil diproses. Periksa file indexradar_error.log.",
+                            text_color="#EF4444"
+                        )
+                    elif processed_count < total_count:
+                        self.lbl_status.configure(
+                            text=f"⚠️ Pengecekan sebagian: {processed_count}/{total_count} domain • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                            text_color="#F59E0B"
+                        )
                     else:
                         self.lbl_status.configure(
-                            text=f"✅ Pengecekan selesai! {len(self.all_data)} domain telah diproses • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                            text=f"✅ Pengecekan selesai! {processed_count} domain telah diproses • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
                             text_color="#10B981"
                         )
 

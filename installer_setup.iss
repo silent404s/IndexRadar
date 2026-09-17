@@ -4,7 +4,7 @@
 ; =====================================================================
 
 #define MyAppName "IndexRadar Pro"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "Skylark"
 #define MyAppURL "https://github.com/silent404s/IndexRadar"
 #define MyAppExeName "IndexRadar.exe"

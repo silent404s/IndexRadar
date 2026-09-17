@@ -22,7 +22,7 @@ class ModernTableView(tk.Frame):
         
         # State animasi loading per baris
         self.checking_indices = set()
-        self.spinner_frames = ["⏳ Memeriksa   ", "⏳ Memeriksa.  ", "⏳ Memeriksa.. ", "⏳ Memeriksa..."]
+        self.spinner_frames = ["Memeriksa   ", "Memeriksa.  ", "Memeriksa.. ", "Memeriksa..."]
         self.spinner_idx = 0
         self.animating = False
 
@@ -198,7 +198,7 @@ class ModernTableView(tk.Frame):
                 "", 
                 tk.END, 
                 iid=iid, 
-                values=(idx, domain, "⏳ Menunggu", "-", "Dalam antrean..."), 
+                values=(idx, domain, "Menunggu", "-", "Dalam antrean..."), 
                 tags=("QUEUED",)
             )
 
@@ -245,7 +245,7 @@ class ModernTableView(tk.Frame):
         self.checking_indices.discard(index_no)
         iid = f"row_{index_no}"
         if self.tree.exists(iid):
-            self.tree.item(iid, values=(index_no, domain, "⏳ Menunggu", "-", "Menunggu antrean cek ulang..."), tags=("QUEUED",))
+            self.tree.item(iid, values=(index_no, domain, "Menunggu", "-", "Menunggu antrean cek ulang..."), tags=("QUEUED",))
 
     def _start_animation(self):
         if not self.animating and self.checking_indices:

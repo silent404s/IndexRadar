@@ -1,6 +1,6 @@
 {
-    "version": "1.0.1",
-    "download_url": "https://github.com/silent404s/IndexRadar/raw/main/Output/IndexRadar_Setup_v1.0.1.exe",
+    "version": "1.0.2",
+    "download_url": "https://github.com/silent404s/IndexRadar/raw/main/Output/IndexRadar_Setup_v1.0.2.exe",
     "force_update": false,
-    "release_notes": "✨ Versi 1.0.1 (Update Patch):\n- Pengetesan sistem pembaruan otomatis (Auto-Update Verification).\n- Mekanisme installer resmi menimpa aplikasi versi lama secara bersih dan otomatis.\n- Penempatan kotak khusus 2Captcha langsung di layar utama dengan fitur cek saldo.\n- Peningkatan kontras teks tombol Stop/Berhenti menjadi putih terang di semua status."
+    "release_notes": "✨ Versi 1.0.2 (Fix Pengecekan & Antarmuka):\n- Perbaikan bug silent failure saat inisialisasi browser headless Chrome.\n- Profil browser terisolasi per worker untuk mencegah konflik singleton lock dengan Chrome yang sedang aktif.\n- Perbaikan rendering teks status antrean tabel (menghilangkan kotak silang [X]).\n- Queue draining otomatis dan akurasi status bar pelaporan hasil pengecekan.\n- Tombol bantuan interaktif (?) untuk Threads, Jeda, dan Proxy."
 }

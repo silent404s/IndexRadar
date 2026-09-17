@@ -1,15 +1,31 @@
+import os
+import sys
 import re
 import random
 import time
 import queue
 import threading
+import tempfile
+import shutil
+import subprocess
+import traceback
 from urllib.parse import urlparse, quote_plus
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 from .captcha_service import solve_google_recaptcha
+
+def log_engine_error(msg):
+    """Mencatat log error teknis ke file indexradar_error.log."""
+    try:
+        log_path = os.path.join(os.getcwd(), "indexradar_error.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 def clean_domain(text):
     """
@@ -47,7 +63,8 @@ def clean_domain(text):
 
 def create_headless_driver(proxy=None):
     """
-    Membuat instance Chrome Headless anti-detection yang ringan.
+    Membuat instance Chrome Headless anti-detection yang ringan dan terisolasi.
+    Returns: (driver, temp_profile_dir)
     """
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
@@ -57,7 +74,28 @@ def create_headless_driver(proxy=None):
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--lang=en-US")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-background-networking")
+    chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument("--disable-default-apps")
+
+    # Direktori profil terisolasi per worker untuk mencegah konflik singleton lock
+    temp_profile_dir = tempfile.mkdtemp(prefix="indexradar_prof_")
+    chrome_options.add_argument(f"--user-data-dir={temp_profile_dir}")
+
+    # Deteksi lokasi binary Chrome di Windows
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe")
+    ]
+    for cp in chrome_paths:
+        if os.path.isfile(cp):
+            chrome_options.binary_location = cp
+            break
+
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -73,18 +111,26 @@ def create_headless_driver(proxy=None):
             proxy_clean = 'http://' + proxy_clean
         chrome_options.add_argument(f"--proxy-server={proxy_clean}")
 
-    driver = webdriver.Chrome(options=chrome_options)
+    service = Service()
+    if os.name == 'nt':
+        service.creation_flags = subprocess.CREATE_NO_WINDOW
+
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     driver.set_page_load_timeout(30)
 
     # Bypass navigator.webdriver
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """
-    })
-    return driver
+    try:
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """
+        })
+    except Exception:
+        pass
+
+    return driver, temp_profile_dir
 
 def parse_google_result(driver, domain):
     """
@@ -195,27 +241,41 @@ class CheckerEngine:
         actual_threads = max(1, min(num_threads, total_items)) if total_items > 0 else 1
         threads = []
 
-        for _ in range(actual_threads):
+        for w_idx in range(1, actual_threads + 1):
             t = threading.Thread(
                 target=self._worker_loop,
-                args=(task_queue, proxies_list, base_delay, use_2captcha, api_key_2captcha),
+                args=(w_idx, task_queue, proxies_list, base_delay, use_2captcha, api_key_2captcha),
                 daemon=True
             )
             t.start()
             threads.append(t)
             self.active_threads.append(t)
+            if w_idx < actual_threads:
+                time.sleep(1.0)  # Stagger launch antar worker
 
         for t in threads:
             t.join()
 
+        # DRAIN SISA TASK_QUEUE JIKA WORKER GAGAL / BERHENTI DINI
+        while not task_queue.empty():
+            try:
+                idx_no, domain = task_queue.get_nowait()
+                reason = "Dibatalkan oleh pengguna" if self.stop_requested else "Gagal (Browser Worker Berhenti)"
+                self.gui_queue.put(("RESULT", (idx_no, domain, "FAILED", "0", reason)))
+                task_queue.task_done()
+            except queue.Empty:
+                break
+
         self.gui_queue.put(("ALL_DONE", None))
 
-    def _worker_loop(self, task_queue, proxies_list, base_delay, use_2captcha, api_key_2captcha):
+    def _worker_loop(self, worker_id, task_queue, proxies_list, base_delay, use_2captcha, api_key_2captcha):
         driver = None
+        temp_profile_dir = None
         current_proxy = random.choice(proxies_list) if proxies_list else None
 
         try:
-            driver = create_headless_driver(current_proxy)
+            self.gui_queue.put(("STATUS", f"Menyiapkan Browser Worker #{worker_id}..."))
+            driver, temp_profile_dir = create_headless_driver(current_proxy)
             with threading.Lock():
                 self.worker_drivers.append(driver)
 
@@ -242,7 +302,7 @@ class CheckerEngine:
                         if use_2captcha and api_key_2captcha:
                             def captcha_status_cb(m):
                                 self.gui_queue.put(("STATUS", m))
-                                self.gui_queue.put(("ROW_UPDATE", (index_no, domain, "⏳ CAPTCHA", "⏳", f"2Captcha: {m}")))
+                                self.gui_queue.put(("ROW_UPDATE", (index_no, domain, "CAPTCHA", "-", f"2Captcha: {m}")))
 
                             solved, msg = solve_google_recaptcha(
                                 driver=driver,
@@ -265,6 +325,7 @@ class CheckerEngine:
                 except Exception as e:
                     detail = f"Browser Error: {str(e)[:35]}"
                     status = "FAILED"
+                    log_engine_error(f"Worker #{worker_id} error checking {domain}: {traceback.format_exc()}")
 
                 # Kirim hasil ke antrean GUI
                 self.gui_queue.put(("RESULT", (index_no, domain, status, pages, detail)))
@@ -275,7 +336,9 @@ class CheckerEngine:
                     time.sleep(base_delay * jitter)
 
         except Exception as err:
-            self.gui_queue.put(("LOG_ERROR", f"Worker crash: {err}"))
+            err_msg = str(err)
+            log_engine_error(f"Worker #{worker_id} fatal crash: {traceback.format_exc()}")
+            self.gui_queue.put(("WORKER_ERROR", f"Worker #{worker_id} gagal memulai browser: {err_msg[:60]}"))
         finally:
             if driver:
                 try:
@@ -285,3 +348,8 @@ class CheckerEngine:
                 with threading.Lock():
                     if driver in self.worker_drivers:
                         self.worker_drivers.remove(driver)
+            if temp_profile_dir and os.path.exists(temp_profile_dir):
+                try:
+                    shutil.rmtree(temp_profile_dir, ignore_errors=True)
+                except Exception:
+                    pass
