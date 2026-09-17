@@ -26,7 +26,7 @@ class MainWindow(ctk.CTk):
         self.config = load_config()
 
         # State storage
-        self.results = {"INDEX": [], "UN-INDEX": [], "FAILED": []}
+        self.results = {"INDEX": [], "NO INDEX": [], "FAILED": []}
         self.data_by_index = {}
         self.all_data = []
         self.gui_queue = queue.Queue()
@@ -533,8 +533,9 @@ class MainWindow(ctk.CTk):
         self.badge_indexed = self.create_badge(metrics_inner, "INDEX", "0", "#10B981")
         self.badge_indexed.pack(side="left", padx=(0, 8))
 
-        self.badge_unindexed = self.create_badge(metrics_inner, "UN-INDEX", "0", "#F59E0B")
-        self.badge_unindexed.pack(side="left", padx=(0, 8))
+        self.badge_noindex = self.create_badge(metrics_inner, "NO INDEX", "0", "#F59E0B")
+        self.badge_noindex.pack(side="left", padx=(0, 8))
+        self.badge_unindexed = self.badge_noindex
 
         self.badge_failed = self.create_badge(metrics_inner, "GAGAL", "0", "#EF4444")
         self.badge_failed.pack(side="left", padx=(0, 15))
@@ -602,9 +603,9 @@ class MainWindow(ctk.CTk):
         )
         btn_copy_index.pack(side="left", padx=(0, 6))
 
-        btn_copy_unindex = ctk.CTkButton(
+        btn_copy_noindex = ctk.CTkButton(
             bottom_inner,
-            text="📋 Salin UN-INDEX",
+            text="📋 Salin NO INDEX",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             fg_color="#92400E",
             hover_color="#B45309",
@@ -614,9 +615,9 @@ class MainWindow(ctk.CTk):
             height=28,
             width=125,
             corner_radius=6,
-            command=lambda: self.copy_by_status("UN-INDEX")
+            command=lambda: self.copy_by_status("NO INDEX")
         )
-        btn_copy_unindex.pack(side="left", padx=(0, 6))
+        btn_copy_noindex.pack(side="left", padx=(0, 6))
 
         btn_copy_failed = ctk.CTkButton(
             bottom_inner,
@@ -729,8 +730,8 @@ class MainWindow(ctk.CTk):
         self.lbl_status.configure(text=f"✅ Berhasil menyalin {len(domains)} domain ({status}) ke clipboard!", text_color="#10B981")
 
     def update_domain_result(self, idx_no, domain, status, count, detail):
-        for cat in ("INDEX", "UN-INDEX", "FAILED"):
-            if domain in self.results[cat]:
+        for cat in ("INDEX", "NO INDEX", "UN-INDEX", "FAILED"):
+            if cat in self.results and domain in self.results[cat]:
                 self.results[cat].remove(domain)
         if status in self.results:
             self.results[status].append(domain)
@@ -762,7 +763,7 @@ class MainWindow(ctk.CTk):
             self.lbl_status.configure(text="⚠️ Hentikan pengecekan terlebih dahulu sebelum mereset tabel!", text_color="#F59E0B")
             return
         self.table_view.clear()
-        self.results = {"INDEX": [], "UN-INDEX": [], "FAILED": []}
+        self.results = {"INDEX": [], "NO INDEX": [], "FAILED": []}
         self.data_by_index = {}
         self.all_data = []
         self.update_badges(0)
@@ -775,7 +776,7 @@ class MainWindow(ctk.CTk):
     def update_badges(self, total_target):
         self.badge_total.value_label.configure(text=str(total_target))
         self.badge_indexed.value_label.configure(text=str(len(self.results["INDEX"])))
-        self.badge_unindexed.value_label.configure(text=str(len(self.results["UN-INDEX"])))
+        self.badge_noindex.value_label.configure(text=str(len(self.results["NO INDEX"])))
         self.badge_failed.value_label.configure(text=str(len(self.results["FAILED"])))
 
     def start_checking(self):
@@ -915,8 +916,8 @@ class MainWindow(ctk.CTk):
         base_delay = float(self.opt_delay.get())
 
         self.table_view.set_row_queued(index_no, domain)
-        for cat in ("INDEX", "UN-INDEX", "FAILED"):
-            if domain in self.results[cat]:
+        for cat in ("INDEX", "NO INDEX", "UN-INDEX", "FAILED"):
+            if cat in self.results and domain in self.results[cat]:
                 self.results[cat].remove(domain)
         self.data_by_index[index_no] = [index_no, domain, "QUEUED", "-", "Menunggu antrean cek ulang..."]
         self.all_data = [self.data_by_index[k] for k in sorted(self.data_by_index.keys())]
@@ -960,7 +961,7 @@ class MainWindow(ctk.CTk):
                     self.update_domain_result(idx_no, domain, status, count, detail)
                     self.table_view.set_row_result(idx_no, domain, status, count, detail)
 
-                    done = sum(1 for row in self.data_by_index.values() if row[2] in ("INDEX", "UN-INDEX", "FAILED"))
+                    done = sum(1 for row in self.data_by_index.values() if row[2] in ("INDEX", "NO INDEX", "UN-INDEX", "FAILED"))
                     tot = getattr(self, "total_tasks", len(self.data_by_index))
                     self.update_badges(tot)
                     frac = done / tot if tot > 0 else 0
@@ -996,7 +997,7 @@ class MainWindow(ctk.CTk):
 
                     threading.Thread(target=self.refresh_balance, daemon=True).start()
 
-                    processed_count = len(self.results["INDEX"]) + len(self.results["UN-INDEX"]) + len(self.results["FAILED"])
+                    processed_count = len(self.results["INDEX"]) + len(self.results["NO INDEX"]) + len(self.results["FAILED"])
                     total_count = getattr(self, "total_tasks", len(self.all_data))
 
                     if self.engine.stop_requested:
@@ -1011,12 +1012,12 @@ class MainWindow(ctk.CTk):
                         )
                     elif processed_count < total_count:
                         self.lbl_status.configure(
-                            text=f"⚠️ Pengecekan sebagian: {processed_count}/{total_count} domain • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                            text=f"⚠️ Pengecekan sebagian: {processed_count}/{total_count} domain • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
                             text_color="#F59E0B"
                         )
                     else:
                         self.lbl_status.configure(
-                            text=f"✅ Pengecekan selesai! {processed_count} domain telah diproses • INDEX: {len(self.results['INDEX'])} | UN-INDEX: {len(self.results['UN-INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                            text=f"✅ Pengecekan selesai! {processed_count} domain telah diproses • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
                             text_color="#10B981"
                         )
 

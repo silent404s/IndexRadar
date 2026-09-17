@@ -8,7 +8,7 @@ def export_to_csv(filepath, data_rows):
     try:
         with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
-            writer.writerow(["No", "Domain", "Status", "Jumlah Index", "Keterangan"])
+            writer.writerow(["No", "Domain", "Status", "Index", "Keterangan"])
             for row in data_rows:
                 writer.writerow(row)
         return True, None

@@ -169,14 +169,14 @@ def parse_google_result(driver, domain):
         ]
         for kw in unindex_keywords:
             if kw in page_source:
-                return ("UN-INDEX", "0", "Tidak ditemukan di indeks Google")
+                return ("NO INDEX", "0", "Tidak ditemukan di indeks Google")
 
         # 4. Cek statistik hasil dari #result-stats
         stats_elements = driver.find_elements(By.ID, "result-stats")
         if stats_elements:
             raw_text = stats_elements[0].get_attribute("textContent").strip()
             if re.search(r'\b0\s+(results|hasil)\b', raw_text, re.IGNORECASE):
-                return ("UN-INDEX", "0", "0 Hasil")
+                return ("NO INDEX", "0", "0 Hasil")
 
             before_paren = raw_text.split('(')[0]
             num_match = re.search(r'([\d\.,\s]+)\s*(?:results|hasil)', before_paren, re.IGNORECASE)
@@ -186,7 +186,7 @@ def parse_google_result(driver, domain):
                 if pages_str and pages_str != "0":
                     return ("INDEX", pages_str, f"{pages_str} hasil ditemukan")
                 elif pages_str == "0":
-                    return ("UN-INDEX", "0", "0 Hasil")
+                    return ("NO INDEX", "0", "0 Hasil")
             elif raw_text:
                 clean_txt = raw_text.split('(')[0].replace("About", "").replace("Sekitar", "").strip()
                 return ("INDEX", clean_txt, f"Terindeks ({clean_txt})")
@@ -196,7 +196,7 @@ def parse_google_result(driver, domain):
         if len(search_items) > 0:
             return ("INDEX", f"{len(search_items)}+", f"Ditemukan {len(search_items)}+ halaman")
 
-        return ("UN-INDEX", "0", "Halaman kosong / tidak ada hasil")
+        return ("NO INDEX", "0", "Halaman kosong / tidak ada hasil")
 
     except Exception as e:
         return ("FAILED", "N/A", f"Error analisa: {str(e)[:40]}")
@@ -313,7 +313,7 @@ class CheckerEngine:
                             )
                             if solved:
                                 status, pages, detail = parse_google_result(driver, domain)
-                                if status in ("INDEX", "UN-INDEX"):
+                                if status in ("INDEX", "NO INDEX"):
                                     detail += " [2Captcha Solved]"
                                 else:
                                     status, pages, detail = "FAILED", "0", "Gagal verifikasi setelah solve"

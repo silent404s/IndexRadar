@@ -42,7 +42,7 @@ class ModernTableView(tk.Frame):
         self.tree.heading("NO", text="#")
         self.tree.heading("DOMAIN", text="Domain / URL")
         self.tree.heading("STATUS", text="Status")
-        self.tree.heading("PAGES", text="Jumlah Index")
+        self.tree.heading("PAGES", text="Index")
         self.tree.heading("DETAIL", text="Keterangan / Pesan")
 
         # Konfigurasi lebar kolom agar proporsional dan tidak terpotong
@@ -66,6 +66,7 @@ class ModernTableView(tk.Frame):
 
         # Tags styling
         self.tree.tag_configure("INDEX", foreground="#10B981", font=("Segoe UI", 9, "bold"))
+        self.tree.tag_configure("NO INDEX", foreground="#F59E0B", font=("Segoe UI", 9, "bold"))
         self.tree.tag_configure("UN-INDEX", foreground="#F59E0B", font=("Segoe UI", 9, "bold"))
         self.tree.tag_configure("UN-INDEXED", foreground="#F59E0B", font=("Segoe UI", 9, "bold"))
         self.tree.tag_configure("FAILED", foreground="#EF4444", font=("Segoe UI", 9, "bold"))
@@ -232,7 +233,7 @@ class ModernTableView(tk.Frame):
         """
         self.checking_indices.discard(index_no)
         iid = f"row_{index_no}"
-        tag = status if status in ("INDEX", "UN-INDEX", "UN-INDEXED", "FAILED") else "FAILED"
+        tag = status if status in ("INDEX", "NO INDEX", "UN-INDEX", "UN-INDEXED", "FAILED") else "FAILED"
         if self.tree.exists(iid):
             self.tree.item(iid, values=(index_no, domain, status, count, detail), tags=(tag,))
         else:
