@@ -4,13 +4,13 @@
 ; =====================================================================
 
 #define MyAppName "IndexRadar Pro"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Skylark"
 #define MyAppURL "https://github.com/silent404s/IndexRadar"
 #define MyAppExeName "IndexRadar.exe"
 
 [Setup]
-; Identifikasi Unik Aplikasi
+; Identifikasi Unik Aplikasi (Konsisten antar versi agar menimpa instalasi lama)
 AppId={{5F8A2D91-E41B-4712-B67D-89F3A981C021}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -19,10 +19,11 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 
-; Direktori Instalasi Default
+; Direktori Instalasi Default & Timpa Direktori Sebelumnya Secara Bersih
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+UsePreviousAppDir=yes
 
 ; Icon Setup & Uninstaller
 SetupIconFile=indexradar_icon.ico
@@ -39,7 +40,7 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
-; Otomatis Menutup Aplikasi Lama Jika Berjalan Saat Update
+; Otomatis Menutup & Mematikan Aplikasi Lama Jika Sedang Berjalan Saat Update
 CloseApplications=yes
 CloseApplicationsFilter=*IndexRadar*.exe
 
