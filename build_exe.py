@@ -20,6 +20,7 @@ def build():
         "--distpath=dist",
         "--workpath=build",
         "--collect-all=customtkinter",
+        "--collect-all=selenium",
         "main.py"
     ]
 
