@@ -25,6 +25,7 @@ class ModernTableView(tk.Frame):
         self.spinner_frames = ["Memeriksa   ", "Memeriksa.  ", "Memeriksa.. ", "Memeriksa..."]
         self.spinner_idx = 0
         self.animating = False
+        self._anim_timer_id = None
 
         # Style ttk Treeview for dark mode
         self.setup_dark_style()
@@ -249,13 +250,20 @@ class ModernTableView(tk.Frame):
             self.tree.item(iid, values=(index_no, domain, "Menunggu", "-", "Menunggu antrean cek ulang..."), tags=("QUEUED",))
 
     def _start_animation(self):
-        if not self.animating and self.checking_indices:
+        if self.checking_indices and not self.animating:
             self.animating = True
+            if self._anim_timer_id is not None:
+                try:
+                    self.after_cancel(self._anim_timer_id)
+                except Exception:
+                    pass
+                self._anim_timer_id = None
             self._animate_step()
 
     def _animate_step(self):
         if not self.checking_indices:
             self.animating = False
+            self._anim_timer_id = None
             return
 
         self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_frames)
@@ -263,13 +271,20 @@ class ModernTableView(tk.Frame):
 
         for idx in list(self.checking_indices):
             iid = f"row_{idx}"
-            if self.tree.exists(iid):
-                vals = list(self.tree.item(iid, "values"))
-                if len(vals) >= 5:
-                    vals[2] = frame_text
-                    self.tree.item(iid, values=vals, tags=("CHECKING",))
+            try:
+                if self.tree.exists(iid):
+                    vals = list(self.tree.item(iid, "values"))
+                    if len(vals) >= 5 and "CAPTCHA" not in str(vals[2]):
+                        vals[2] = frame_text
+                        self.tree.item(iid, values=vals, tags=("CHECKING",))
+            except Exception:
+                pass
 
-        self.after(300, self._animate_step)
+        if self.checking_indices:
+            self._anim_timer_id = self.after(300, self._animate_step)
+        else:
+            self.animating = False
+            self._anim_timer_id = None
 
     def insert_row(self, no, domain, status, count, detail):
         """Fallback untuk kompatibilitas."""
@@ -278,5 +293,14 @@ class ModernTableView(tk.Frame):
     def clear(self):
         self.checking_indices.clear()
         self.animating = False
+        if self._anim_timer_id is not None:
+            try:
+                self.after_cancel(self._anim_timer_id)
+            except Exception:
+                pass
+            self._anim_timer_id = None
         for item in self.tree.get_children():
-            self.tree.delete(item)
+            try:
+                self.tree.delete(item)
+            except Exception:
+                pass

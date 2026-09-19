@@ -946,85 +946,91 @@ class MainWindow(ctk.CTk):
     def process_queue(self):
         try:
             while True:
-                msg_type, data = self.gui_queue.get_nowait()
+                try:
+                    msg_type, data = self.gui_queue.get_nowait()
+                except queue.Empty:
+                    break
 
-                if msg_type == "ROW_START":
-                    idx_no, domain = data
-                    self.table_view.set_row_checking(idx_no, domain)
+                try:
+                    if msg_type == "ROW_START":
+                        idx_no, domain = data
+                        self.table_view.set_row_checking(idx_no, domain)
 
-                elif msg_type == "ROW_UPDATE":
-                    idx_no, domain, st, cnt, dt = data
-                    self.table_view.update_row_detail(idx_no, domain, st, cnt, dt)
+                    elif msg_type == "ROW_UPDATE":
+                        idx_no, domain, st, cnt, dt = data
+                        self.table_view.update_row_detail(idx_no, domain, st, cnt, dt)
 
-                elif msg_type == "RESULT":
-                    idx_no, domain, status, count, detail = data
-                    self.update_domain_result(idx_no, domain, status, count, detail)
-                    self.table_view.set_row_result(idx_no, domain, status, count, detail)
+                    elif msg_type == "RESULT":
+                        idx_no, domain, status, count, detail = data
+                        self.update_domain_result(idx_no, domain, status, count, detail)
+                        self.table_view.set_row_result(idx_no, domain, status, count, detail)
 
-                    done = sum(1 for row in self.data_by_index.values() if row[2] in ("INDEX", "NO INDEX", "UN-INDEX", "FAILED"))
-                    tot = getattr(self, "total_tasks", len(self.data_by_index))
-                    self.update_badges(tot)
-                    frac = done / tot if tot > 0 else 0
-                    self.progressbar.set(frac)
-                    self.lbl_progress.configure(text=f"{done} / {tot} ({int(frac*100)}%)")
+                        done = sum(1 for row in self.data_by_index.values() if row[2] in ("INDEX", "NO INDEX", "UN-INDEX", "FAILED"))
+                        tot = getattr(self, "total_tasks", len(self.data_by_index))
+                        self.update_badges(tot)
+                        frac = done / tot if tot > 0 else 0
+                        self.progressbar.set(frac)
+                        self.lbl_progress.configure(text=f"{done} / {tot} ({int(frac*100)}%)")
 
-                elif msg_type == "STATUS":
-                    self.lbl_status.configure(text=data)
+                    elif msg_type == "STATUS":
+                        self.lbl_status.configure(text=data)
 
-                elif msg_type == "BALANCE":
-                    text, color = data
-                    self.lbl_balance.configure(text=text, text_color=color)
+                    elif msg_type == "BALANCE":
+                        text, color = data
+                        self.lbl_balance.configure(text=text, text_color=color)
 
-                elif msg_type == "WORKER_ERROR":
-                    self.lbl_status.configure(text=f"❌ {data}", text_color="#EF4444")
+                    elif msg_type == "WORKER_ERROR":
+                        self.lbl_status.configure(text=f"❌ {data}", text_color="#EF4444")
 
-                elif msg_type == "LOG_ERROR":
-                    self.lbl_status.configure(text=f"⚠️ {data}", text_color="#F59E0B")
+                    elif msg_type == "LOG_ERROR":
+                        self.lbl_status.configure(text=f"⚠️ {data}", text_color="#F59E0B")
 
-                elif msg_type == "ALL_DONE":
-                    self.is_checking = False
-                    self.btn_start.configure(state="normal")
-                    self.btn_stop.configure(state="disabled", fg_color="#450A0A")
-                    self.opt_threads.configure(state="normal")
-                    self.opt_delay.configure(state="normal")
+                    elif msg_type == "ALL_DONE":
+                        self.is_checking = False
+                        self.btn_start.configure(state="normal")
+                        self.btn_stop.configure(state="disabled", fg_color="#450A0A")
+                        self.opt_threads.configure(state="normal")
+                        self.opt_delay.configure(state="normal")
 
-                    # Perbarui status tombol Cek Ulang Gagal
-                    failed_count = len(self.results["FAILED"])
-                    if failed_count > 0:
-                        self.btn_retry_failed.configure(state="normal", fg_color="#B45309", text=f"🔄  Cek Ulang Gagal ({failed_count})")
-                    else:
-                        self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
+                        # Perbarui status tombol Cek Ulang Gagal
+                        failed_count = len(self.results["FAILED"])
+                        if failed_count > 0:
+                            self.btn_retry_failed.configure(state="normal", fg_color="#B45309", text=f"🔄  Cek Ulang Gagal ({failed_count})")
+                        else:
+                            self.btn_retry_failed.configure(state="disabled", fg_color="#78350F", text="🔄  Cek Ulang Gagal")
 
-                    threading.Thread(target=self.refresh_balance, daemon=True).start()
+                        threading.Thread(target=self.refresh_balance, daemon=True).start()
 
-                    processed_count = len(self.results["INDEX"]) + len(self.results["NO INDEX"]) + len(self.results["FAILED"])
-                    total_count = getattr(self, "total_tasks", len(self.all_data))
+                        processed_count = len(self.results["INDEX"]) + len(self.results["NO INDEX"]) + len(self.results["FAILED"])
+                        total_count = getattr(self, "total_tasks", len(self.all_data))
 
-                    if self.engine.stop_requested:
-                        self.lbl_status.configure(
-                            text=f"⏹ Pengecekan dihentikan oleh pengguna. ({processed_count}/{total_count} domain)",
-                            text_color="#F59E0B"
-                        )
-                    elif processed_count == 0 and total_count > 0:
-                        self.lbl_status.configure(
-                            text="❌ Pengecekan gagal! Tidak ada domain yang berhasil diproses. Periksa file indexradar_error.log.",
-                            text_color="#EF4444"
-                        )
-                    elif processed_count < total_count:
-                        self.lbl_status.configure(
-                            text=f"⚠️ Pengecekan sebagian: {processed_count}/{total_count} domain • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
-                            text_color="#F59E0B"
-                        )
-                    else:
-                        self.lbl_status.configure(
-                            text=f"✅ Pengecekan selesai! {processed_count} domain telah diproses • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
-                            text_color="#10B981"
-                        )
+                        if self.engine.stop_requested:
+                            self.lbl_status.configure(
+                                text=f"⏹ Pengecekan dihentikan oleh pengguna. ({processed_count}/{total_count} domain)",
+                                text_color="#F59E0B"
+                            )
+                        elif processed_count == 0 and total_count > 0:
+                            self.lbl_status.configure(
+                                text="❌ Pengecekan gagal! Tidak ada domain yang berhasil diproses. Periksa file indexradar_error.log.",
+                                text_color="#EF4444"
+                            )
+                        elif processed_count < total_count:
+                            self.lbl_status.configure(
+                                text=f"⚠️ Pengecekan sebagian: {processed_count}/{total_count} domain • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                                text_color="#F59E0B"
+                            )
+                        else:
+                            self.lbl_status.configure(
+                                text=f"✅ Pengecekan selesai! {processed_count} domain telah diproses • INDEX: {len(self.results['INDEX'])} | NO INDEX: {len(self.results['NO INDEX'])} | GAGAL: {len(self.results['FAILED'])}",
+                                text_color="#10B981"
+                            )
 
-        except queue.Empty:
-            pass
-
-        self.after(80, self.process_queue)
+                except Exception as msg_err:
+                    print(f"[GUI Queue] Exception handling msg {msg_type}: {msg_err}")
+        except Exception as e:
+            print(f"[GUI Queue] Top-level exception: {e}")
+        finally:
+            self.after(80, self.process_queue)
 
     def on_closing(self):
         self.is_checking = False

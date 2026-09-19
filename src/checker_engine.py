@@ -81,6 +81,9 @@ def create_headless_driver(proxy=None):
     chrome_options.add_argument("--disable-sync")
     chrome_options.add_argument("--disable-default-apps")
 
+    # Optimasikan page load strategy ke 'eager' agar tidak menggantung menunggu resource pihak ke-3
+    chrome_options.page_load_strategy = "eager"
+
     # Direktori profil terisolasi per worker untuk mencegah konflik singleton lock
     temp_profile_dir = tempfile.mkdtemp(prefix="indexradar_prof_")
     chrome_options.add_argument(f"--user-data-dir={temp_profile_dir}")
@@ -116,7 +119,8 @@ def create_headless_driver(proxy=None):
         service.creation_flags = subprocess.CREATE_NO_WINDOW
 
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.set_page_load_timeout(30)
+    driver.set_page_load_timeout(15)
+    driver.set_script_timeout(10)
 
     # Bypass navigator.webdriver
     try:
@@ -207,16 +211,24 @@ class CheckerEngine:
         self.stop_requested = False
         self.worker_drivers = []
         self.active_threads = []
+        self.lock = threading.Lock()
 
     def stop(self):
-        """Menghentikan seluruh worker dan menutup instance browser."""
+        """Menghentikan seluruh worker secara aman tanpa menyebabkan deadlock."""
         self.stop_requested = True
-        drivers_to_close = list(self.worker_drivers)
-        for d in drivers_to_close:
-            try:
-                d.quit()
-            except Exception:
-                pass
+        # Beri kesempatan worker mengecek stop_requested dan quit sendiri dalam thread-nya
+        # Tutup driver yang senggang di background thread non-blocking jika tidak aktif
+        def async_stop():
+            time.sleep(0.5)
+            with self.lock:
+                drivers_to_close = list(self.worker_drivers)
+            for d in drivers_to_close:
+                try:
+                    d.quit()
+                except Exception:
+                    pass
+
+        threading.Thread(target=async_stop, daemon=True).start()
 
     def run_supervisor(self, items, proxies_list, num_threads, base_delay, use_2captcha, api_key_2captcha, is_task_list=False):
         """
@@ -225,8 +237,9 @@ class CheckerEngine:
         Jika is_task_list=False, items adalah list domain ['domain1', 'domain2', ...].
         """
         self.stop_requested = False
-        self.worker_drivers = []
-        self.active_threads = []
+        with self.lock:
+            self.worker_drivers = []
+            self.active_threads = []
 
         task_queue = queue.Queue()
         if is_task_list:
@@ -249,9 +262,10 @@ class CheckerEngine:
             )
             t.start()
             threads.append(t)
-            self.active_threads.append(t)
+            with self.lock:
+                self.active_threads.append(t)
             if w_idx < actual_threads:
-                time.sleep(1.0)  # Stagger launch antar worker
+                time.sleep(0.5)  # Stagger launch antar worker
 
         for t in threads:
             t.join()
@@ -273,10 +287,25 @@ class CheckerEngine:
         temp_profile_dir = None
         current_proxy = random.choice(proxies_list) if proxies_list else None
 
+        def cleanup_driver(d, pdir):
+            if d:
+                try:
+                    d.quit()
+                except Exception:
+                    pass
+                with self.lock:
+                    if d in self.worker_drivers:
+                        self.worker_drivers.remove(d)
+            if pdir and os.path.exists(pdir):
+                try:
+                    shutil.rmtree(pdir, ignore_errors=True)
+                except Exception:
+                    pass
+
         try:
             self.gui_queue.put(("STATUS", f"Menyiapkan Browser Worker #{worker_id}..."))
             driver, temp_profile_dir = create_headless_driver(current_proxy)
-            with threading.Lock():
+            with self.lock:
                 self.worker_drivers.append(driver)
 
             while not self.stop_requested:
@@ -286,19 +315,29 @@ class CheckerEngine:
                     break
 
                 index_no, domain = task
+                if self.stop_requested:
+                    self.gui_queue.put(("RESULT", (index_no, domain, "FAILED", "0", "Dibatalkan oleh pengguna")))
+                    task_queue.task_done()
+                    break
+
                 self.gui_queue.put(("ROW_START", (index_no, domain)))
                 self.gui_queue.put(("STATUS", f"Sedang memeriksa (#{index_no}): {domain}..."))
 
                 status, pages, detail = "FAILED", "N/A", "Error"
+                driver_corrupted = False
+
                 try:
                     query_url = f"https://www.google.com/search?q=site:{quote_plus(domain)}&hl=en"
                     driver.get(query_url)
-                    time.sleep(1.0)
+                    time.sleep(0.5)
 
-                    status, pages, detail = parse_google_result(driver, domain)
+                    if self.stop_requested:
+                        status, pages, detail = "FAILED", "0", "Dibatalkan oleh pengguna"
+                    else:
+                        status, pages, detail = parse_google_result(driver, domain)
 
                     # Jika terdeteksi CAPTCHA dan opsi 2Captcha aktif
-                    if status == "CAPTCHA":
+                    if status == "CAPTCHA" and not self.stop_requested:
                         if use_2captcha and api_key_2captcha:
                             def captcha_status_cb(m):
                                 self.gui_queue.put(("STATUS", m))
@@ -311,7 +350,7 @@ class CheckerEngine:
                                 status_callback=captcha_status_cb,
                                 stop_check_callback=lambda: self.stop_requested
                             )
-                            if solved:
+                            if solved and not self.stop_requested:
                                 status, pages, detail = parse_google_result(driver, domain)
                                 if status in ("INDEX", "NO INDEX"):
                                     detail += " [2Captcha Solved]"
@@ -323,6 +362,7 @@ class CheckerEngine:
                             status, pages, detail = "FAILED", "0", "Terdeteksi CAPTCHA (2Captcha tidak aktif)"
 
                 except Exception as e:
+                    driver_corrupted = True
                     detail = f"Browser Error: {str(e)[:35]}"
                     status = "FAILED"
                     log_engine_error(f"Worker #{worker_id} error checking {domain}: {traceback.format_exc()}")
@@ -331,25 +371,27 @@ class CheckerEngine:
                 self.gui_queue.put(("RESULT", (index_no, domain, status, pages, detail)))
                 task_queue.task_done()
 
+                # Pemulihan otomatis jika browser crash atau timeout
+                if driver_corrupted and not self.stop_requested:
+                    self.gui_queue.put(("STATUS", f"Worker #{worker_id} memulihkan browser session..."))
+                    cleanup_driver(driver, temp_profile_dir)
+                    driver = None
+                    temp_profile_dir = None
+                    try:
+                        driver, temp_profile_dir = create_headless_driver(current_proxy)
+                        with self.lock:
+                            self.worker_drivers.append(driver)
+                    except Exception as recreate_err:
+                        log_engine_error(f"Worker #{worker_id} gagal membuat ulang browser: {recreate_err}")
+                        break
+
                 if not self.stop_requested:
-                    jitter = random.uniform(0.8, 1.8)
+                    jitter = random.uniform(0.5, 1.2)
                     time.sleep(base_delay * jitter)
 
         except Exception as err:
             err_msg = str(err)
             log_engine_error(f"Worker #{worker_id} fatal crash: {traceback.format_exc()}")
-            self.gui_queue.put(("WORKER_ERROR", f"Worker #{worker_id} gagal memulai browser: {err_msg[:60]}"))
+            self.gui_queue.put(("WORKER_ERROR", f"Worker #{worker_id} gagal menjalankan browser: {err_msg[:60]}"))
         finally:
-            if driver:
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
-                with threading.Lock():
-                    if driver in self.worker_drivers:
-                        self.worker_drivers.remove(driver)
-            if temp_profile_dir and os.path.exists(temp_profile_dir):
-                try:
-                    shutil.rmtree(temp_profile_dir, ignore_errors=True)
-                except Exception:
-                    pass
+            cleanup_driver(driver, temp_profile_dir)

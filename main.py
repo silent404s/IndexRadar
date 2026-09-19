@@ -12,8 +12,11 @@ def setup_windows_environment():
         app_id = 'indexradar.pro.checker.v1'
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
         
-        # Per-Monitor DPI Aware
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        # Per-Monitor V2 DPI Aware (2) atau Per-Monitor (1) fallback
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
 
